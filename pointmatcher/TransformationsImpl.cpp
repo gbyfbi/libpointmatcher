@@ -79,7 +79,7 @@ typename PointMatcher<T>::DataPoints TransformationsImpl<T>::RigidTransformation
 		BOOST_AUTO(outputDesc, transformedCloud.descriptors.block(row, 0, span, descCols));
 		if (name == "normals" || name == "observationDirections")
 			outputDesc = R * inputDesc;
-		
+
 		row += span;
 	}
 
@@ -261,3 +261,108 @@ bool TransformationsImpl<T>::PureTranslation::checkParameters(
 
 template struct TransformationsImpl<float>::PureTranslation;
 template struct TransformationsImpl<double>::PureTranslation;
+
+template<typename T>
+typename PointMatcher<T>::DataPoints TransformationsImpl<T>::ZRotationFullTranslation::compute(
+		const DataPoints& input,
+		const TransformationParameters& parameters) const
+{
+	assert(input.features.rows() == parameters.rows());
+	assert(parameters.rows() == parameters.cols());
+
+//	const unsigned int nbRows = parameters.rows()-1;
+//	const unsigned int nbCols = parameters.cols()-1;
+
+//	const TransformationParameters R(parameters.topLeftCorner(nbRows, nbCols));
+
+//	if(this->checkParameters(parameters) == false)
+//		throw TransformationError("ZRotationFullTranslation: Error, rotation matrix is not orthogonal.");
+
+	//DataPoints transformedCloud(input.featureLabels, input.descriptorLabels, input.timeLabels, input.features.cols());
+	DataPoints transformedCloud = input;
+	TransformationParameters zRotationFullTranslation(parameters);
+	Eigen::Matrix<T, 3, 1> zCol;
+	zCol << 0, 0, 1;
+	Eigen::Matrix<T, 1, 2> zRow = Eigen::Matrix<T, 1, 2>::Zero(1, 2);
+//	zRotationFullTranslation.block(0, 2, 3, 1) = zCol;
+//	zRotationFullTranslation.block(2, 0, 1, 2) = zRow;
+
+	// Apply the transformation to features
+	std::cout<< zRotationFullTranslation << std::endl<<std::endl;
+	transformedCloud.features = zRotationFullTranslation* input.features;
+
+	// Apply the transformation to descriptors
+//	int row(0);
+//	const int descCols(input.descriptors.cols());
+//	for (size_t i = 0; i < input.descriptorLabels.size(); ++i)
+//	{
+//		const int span(input.descriptorLabels[i].span);
+//		const std::string& name(input.descriptorLabels[i].text);
+//		const BOOST_AUTO(inputDesc, input.descriptors.block(row, 0, span, descCols));
+//		BOOST_AUTO(outputDesc, transformedCloud.descriptors.block(row, 0, span, descCols));
+//		if (name == "normals" || name == "observationDirections")
+//			outputDesc = R * inputDesc;
+//
+//		row += span;
+//	}
+
+	return transformedCloud;
+}
+
+//! Ensure orthogonality of the rotation matrix
+template<typename T>
+bool TransformationsImpl<T>::ZRotationFullTranslation::checkParameters(const TransformationParameters& parameters) const
+{
+	//FIXME: FP - should we put that as function argument?
+	const T epsilon = 0.001;
+	const unsigned int nbRows = parameters.rows()-1;
+	const unsigned int nbCols = parameters.cols()-1;
+
+	const TransformationParameters R(parameters.topLeftCorner(nbRows, nbCols));
+
+	if(anyabs(1 - R.determinant()) > epsilon)
+		return false;
+	else
+		return true;
+
+}
+
+//! Force orthogonality of the rotation matrix
+template<typename T>
+typename PointMatcher<T>::TransformationParameters TransformationsImpl<T>::ZRotationFullTranslation::correctParameters(const TransformationParameters& parameters) const
+{
+	TransformationParameters ortho = parameters;
+	if(ortho.cols() == 4)
+	{
+		const Eigen::Matrix<T, 3, 1> col0 = parameters.block(0, 0, 3, 1).normalized();
+		const Eigen::Matrix<T, 3, 1> col1 = parameters.block(0, 1, 3, 1).normalized();
+		const Eigen::Matrix<T, 3, 1> col2 = parameters.block(0, 2, 3, 1).normalized();
+
+
+		ortho.block(0, 0, 3, 1) = col1.cross(col2);
+		ortho.block(0, 1, 3, 1) = col2.cross(col0);
+		ortho.block(0, 2, 3, 1) = col2;
+	}
+	else if(ortho.cols() == 3)
+	{
+		// R = [ a b]
+		//     [-b a]
+
+		// mean of a and b
+		T a = (parameters(0,0) + parameters(1,1))/2;
+		T b = (-parameters(1,0) + parameters(0,1))/2;
+		T sum = sqrt(pow(a,2) + pow(b,2));
+
+		a = a/sum;
+		b = b/sum;
+
+		ortho(0,0) =  a; ortho(0,1) = b;
+		ortho(1,0) = -b; ortho(1,1) = a;
+	}
+
+
+	return ortho;
+}
+
+template struct TransformationsImpl<float>::ZRotationFullTranslation;
+template struct TransformationsImpl<double>::ZRotationFullTranslation;
