@@ -86,18 +86,6 @@ struct TransformationsImpl
 		virtual bool checkParameters(const TransformationParameters& parameters) const;
 		virtual TransformationParameters correctParameters(const TransformationParameters& parameters) const;
 	};
-
-	struct ZRotationFullTranslation: public Transformation
-	{
-		inline static const std::string description()
-		{
-			return "Z-axis Only rotation and full translation transformation\n.";
-		}
-
-		virtual DataPoints compute(const DataPoints& input, const TransformationParameters& parameters) const;
-		virtual bool checkParameters(const TransformationParameters& parameters) const;
-		virtual TransformationParameters correctParameters(const TransformationParameters& parameters) const;
-	};
 }; // TransformationsImpl
 
 #endif // __POINTMATCHER_TRANSFORMATION_H
