@@ -76,6 +76,17 @@ struct ErrorMinimizersImpl
 		virtual T getOverlap() const;
 	};
 
+    struct PointToPointErrorMinimizer2DRotation: ErrorMinimizer
+    {
+        inline static const std::string description()
+        {
+            return "Point-to-point 2D rotation error. Based on SVD decomposition. Per \\cite{Besl1992Point2Point}.";
+        }
+
+        virtual TransformationParameters compute(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches);
+        virtual T getOverlap() const;
+    };
+
   	struct PointToPointSimilarityErrorMinimizer: ErrorMinimizer
 	{
 		inline static const std::string description()

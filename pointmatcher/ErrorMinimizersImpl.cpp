@@ -1199,3 +1199,112 @@ T ErrorMinimizersImpl<T>::PointToPlaneErrorMinimizer2DRotation::getOverlap() con
 template struct ErrorMinimizersImpl<float>::PointToPlaneErrorMinimizer2DRotation;
 template struct ErrorMinimizersImpl<double>::PointToPlaneErrorMinimizer2DRotation;
 
+// Point To POINT 2D rotation ErrorMinimizer
+template<typename T>
+typename PointMatcher<T>::TransformationParameters ErrorMinimizersImpl<T>::PointToPointErrorMinimizer2DRotation::compute(
+        const DataPoints& filteredReading,
+        const DataPoints& filteredReference,
+        const OutlierWeights& outlierWeights,
+        const Matches& matches)
+{
+    assert(matches.ids.rows() > 0);
+
+    typename ErrorMinimizer::ErrorElements& mPts = this->getMatchedPoints(filteredReading, filteredReference, matches, outlierWeights);
+
+    // now minimize on kept points
+    const int dimCount(mPts.reading.features.rows());
+    //const int ptsCount(mPts.reading.features.cols()); //Both point clouds have now the same number of (matched) point
+
+    // Compute the (weighted) mean of each point cloud
+    const Vector& w = mPts.weights;
+    const T w_sum_inv = T(1.)/w.sum();
+
+// FIXME: remove those statements onces the multiplication with rowwise() is more spread on OS
+#if EIGEN_MAJOR_VERSION > 0
+    const Vector meanReading =
+            (mPts.reading.features.topRows(dimCount-1).array().rowwise() * w.array().transpose()).rowwise().sum() * w_sum_inv;
+    const Vector meanReference =
+            (mPts.reference.features.topRows(dimCount-1).array().rowwise() * w.array().transpose()).rowwise().sum() * w_sum_inv;
+#else
+    const Vector meanReading = mPts.reading.features.topRows(dimCount-1).cwiseProduct(w.replicate(dimCount-1, 1)).rowwise().sum() * w_sum_inv;
+	const Vector meanReference = mPts.reference.features.topRows(dimCount-1).cwiseProduct(w.replicate(dimCount-1, 1)).rowwise().sum() * w_sum_inv;
+#endif
+
+    // Remove the mean from the point clouds
+    mPts.reading.features.topRows(dimCount-1).colwise() -= meanReading;
+    mPts.reference.features.topRows(dimCount-1).colwise() -= meanReference;
+
+    // Singular Value Decomposition
+    const Matrix m(mPts.reference.features.topRows(dimCount-1) * w.asDiagonal()
+                   * mPts.reading.features.topRows(dimCount-1).transpose());
+    const JacobiSVD<Matrix> svd(m, ComputeThinU | ComputeThinV);
+    Matrix rotMatrix(svd.matrixU() * svd.matrixV().transpose());
+    // It is possible to get a reflection instead of a rotation. In this case, we
+    // take the second best solution, guaranteed to be a rotation. For more details,
+    // read the tech report: "Least-Squares Rigid Motion Using SVD", Olga Sorkine
+    // http://igl.ethz.ch/projects/ARAP/svd_rot.pdf
+/*    if (rotMatrix.determinant() < 0.)
+    {
+        Matrix tmpV = svd.matrixV().transpose();
+        tmpV.row(dimCount-2) *= -1.;
+        rotMatrix = svd.matrixU() * tmpV;
+    }
+    */
+    const Vector trVector(meanReference - rotMatrix * meanReading);
+
+    assert(dimCount == 3);
+
+    const T pitch = -asin(rotMatrix(2,0));
+    const T roll = atan2(rotMatrix(2,1), rotMatrix(2,2));
+    const T yaw = atan2(rotMatrix(1,0) / cos(pitch), rotMatrix(0,0) / cos(pitch));
+    Eigen::Matrix<T, 3, 1> ea = (Eigen::Matrix<T, 3, 3>(rotMatrix)).eulerAngles(0, 1, 2);
+    Eigen::Transform<T, 3, Eigen::Affine> transform;
+    //transform = Eigen::AngleAxis<T>(ea(2),Eigen::Matrix<T,3,1>::UnitZ()); DOSE NOT WORK (sometimes 180 degree inverse!!!)
+    transform = Eigen::AngleAxis<T>(yaw,Eigen::Matrix<T,3,1>::UnitZ());
+    transform.translation() = trVector;
+    Matrix result = transform.matrix();
+    //Matrix result(Matrix::Identity(dimCount, dimCount));
+    //result.topLeftCorner(dimCount-1, dimCount-1) = r;
+    //result.topRightCorner(dimCount-1, 1) = trVector;
+
+    return result;
+}
+
+template<typename T>
+T ErrorMinimizersImpl<T>::PointToPointErrorMinimizer2DRotation::getOverlap() const
+{
+    //NOTE: computing overlap of 2 point clouds can be complicated due to
+    // the sparse nature of the representation. Here is only an estimate
+    // of the true overlap.
+    const int nbPoints = this->lastErrorElements.reading.features.cols();
+    const int dim = this->lastErrorElements.reading.features.rows();
+    if(nbPoints == 0)
+    {
+        throw std::runtime_error("Error, last error element empty. Error minimizer needs to be called at least once before using this method.");
+    }
+
+    if (!this->lastErrorElements.reading.descriptorExists("simpleSensorNoise"))
+    {
+        LOG_INFO_STREAM("PointToPointErrorMinimizer - warning, no sensor noise found. Using best estimate given outlier rejection instead.");
+        return this->weightedPointUsedRatio;
+    }
+
+    const BOOST_AUTO(noises, this->lastErrorElements.reading.getDescriptorViewByName("simpleSensorNoise"));
+
+    const Vector dists = (this->lastErrorElements.reading.features.topRows(dim-1) - this->lastErrorElements.reference.features.topRows(dim-1)).colwise().norm();
+    const T mean = dists.sum()/nbPoints;
+
+    int count = 0;
+    for(int i=0; i < nbPoints; i++)
+    {
+        if(dists(i) < (mean + noises(0,i)))
+        {
+            count++;
+        }
+    }
+
+    return (T)count/(T)nbPoints;
+}
+
+template struct ErrorMinimizersImpl<float>::PointToPointErrorMinimizer2DRotation;
+template struct ErrorMinimizersImpl<double>::PointToPointErrorMinimizer2DRotation;
