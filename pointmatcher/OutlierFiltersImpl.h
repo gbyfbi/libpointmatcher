@@ -218,6 +218,23 @@ struct OutlierFiltersImpl
 		virtual OutlierWeights compute(const DataPoints& filteredReading, const DataPoints& filteredReference, const Matches& input);
 	};
 
+	struct CurvatureOutlierFilter: public OutlierFilter
+	{
+		inline static const std::string description()
+		{
+			return "Curvature outlier filter to emphasize high curvature points in the template. the ratio is of no use right now.";
+		}
+		inline static const ParametersDoc availableParameters()
+		{
+			return boost::assign::list_of<ParameterDoc>( "ratio", "percentage to keep", "0.85", "0.0000001", "1.0", &P::Comp<T>);
+		}
+
+		const T ratio;
+
+		CurvatureOutlierFilter(const Parameters& params = Parameters());
+		virtual OutlierWeights compute(const DataPoints& filteredReading, const DataPoints& filteredReference, const Matches& input);
+	};
+
 }; // OutlierFiltersImpl
 
 #endif // __POINTMATCHER_OUTLIERFILTERS_H

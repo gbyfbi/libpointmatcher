@@ -362,4 +362,33 @@ typename PointMatcher<T>::OutlierWeights OutlierFiltersImpl<T>::GenericDescripto
 template struct OutlierFiltersImpl<float>::GenericDescriptorOutlierFilter;
 template struct OutlierFiltersImpl<double>::GenericDescriptorOutlierFilter;
 
+// CurvatureOutlierFilter
+template<typename T>
+OutlierFiltersImpl<T>::CurvatureOutlierFilter::CurvatureOutlierFilter(const Parameters& params):
+		OutlierFilter("CurvatureOutlierFilter", CurvatureOutlierFilter::availableParameters(), params),
+		ratio(Parametrizable::get<T>("ratio"))
+{
+}
+
+template<typename T>
+typename PointMatcher<T>::OutlierWeights OutlierFiltersImpl<T>::CurvatureOutlierFilter::compute(
+		const DataPoints& filteredReading,
+		const DataPoints& filteredReference,
+		const Matches& input)
+{
+//	const T limit = input.getDistsQuantile(ratio);
+    typename PointMatcher<T>::DataPoints::ConstView curvatures = filteredReference.getDescriptorViewByName(std::string("curvatures"));
+    Eigen::MatrixXf outlierWeights(input.ids.rows(), input.ids.cols());
+    for (int i = 0; i < input.ids.rows(); i++) {
+        for (int j = 0; j < input.ids.cols(); j++) {
+            int nearestTemplatePointIndex = input.ids(i,j);
+            outlierWeights(i, j) = curvatures(0, nearestTemplatePointIndex);
+        }
+    }
+	return OutlierWeights(outlierWeights.template cast<T>());
+}
+
+template struct OutlierFiltersImpl<float>::CurvatureOutlierFilter;
+template struct OutlierFiltersImpl<double>::CurvatureOutlierFilter;
+
 
