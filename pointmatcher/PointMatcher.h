@@ -519,7 +519,8 @@ struct PointMatcher
 			Matches matches; //!< associations
 			int nbRejectedMatches; //!< number of matches with zero weights
 			int nbRejectedPoints; //!< number of points with all matches set to zero weights
-
+            double averagedMatchingDist2; //!< average of squared matching disttances in matches
+            double weightedMatchingDist2; //!< weighted squared matching distances in matches
 			ErrorElements(const DataPoints& reading=DataPoints(), const DataPoints reference = DataPoints(), const OutlierWeights weights = OutlierWeights(), const Matches matches = Matches());
 		};
 		

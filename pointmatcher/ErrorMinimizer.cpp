@@ -184,6 +184,9 @@ typename PointMatcher<T>::ErrorMinimizer::ErrorElements& PointMatcher<T>::ErrorM
 	int rejectedPointCount = 0;
 	bool matchExist = false;
 	this->weightedPointUsedRatio = 0;
+    // local variables to store overall squared distances: averaged/weighted who are corresponding to the ones in struct ErrorElements
+	double weightedMatchingDist2 = 0;
+    double averagedMatchingDist2 = 0;
 	
 	for (int i = 0; i < requestedPts.features.cols(); ++i) //nb pts
 	{
@@ -201,6 +204,8 @@ typename PointMatcher<T>::ErrorMinimizer::ErrorElements& PointMatcher<T>::ErrorM
 				keptWeights(0,j) = outlierWeights(k,i);
 				++j;
 				this->weightedPointUsedRatio += outlierWeights(k,i);
+                weightedMatchingDist2 += outlierWeights(k,i) * matches.dists(k, i);
+                averagedMatchingDist2 += matches.dists(k, i);
 				matchExist = true;
 			}
 			else
@@ -217,9 +222,12 @@ typename PointMatcher<T>::ErrorMinimizer::ErrorElements& PointMatcher<T>::ErrorM
 
 	assert(j == pointsCount);
 
+    weightedMatchingDist2 /= this->weightedPointUsedRatio;
+    averagedMatchingDist2 /= double(j);
+
 	this->pointUsedRatio = double(j)/double(knn*requestedPts.features.cols());
 	this->weightedPointUsedRatio /= double(knn*requestedPts.features.cols());
-	
+
 	assert(dimFeat == sourcePts.features.rows());
 	const int dimSourDesc = sourcePts.descriptors.rows();
 	
@@ -254,6 +262,9 @@ typename PointMatcher<T>::ErrorMinimizer::ErrorElements& PointMatcher<T>::ErrorM
 	this->lastErrorElements.matches = keptMatches;
 	this->lastErrorElements.nbRejectedMatches = rejectedMatchCount;
 	this->lastErrorElements.nbRejectedPoints = rejectedPointCount;
+    // save them into ErrorElements so that we don't need two getter()
+    this->lastErrorElements.averagedMatchingDist2 = averagedMatchingDist2;
+    this->lastErrorElements.weightedMatchingDist2 = weightedMatchingDist2;
 
 	return this->lastErrorElements;
 }
