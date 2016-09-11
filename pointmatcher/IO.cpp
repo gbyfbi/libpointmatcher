@@ -102,15 +102,19 @@ CsvElements parseCsvWithHeader(const std::string& fileName)
 
 	bool firstLine(true);
 	unsigned lineCount=0;
-	while (!is.eof())
+	string line;
+	//while (!is.eof())
+	while (std::getline(is, line))
 	{
-		char line[1024];
-		is.getline(line, sizeof(line));
-		line[sizeof(line)-1] = 0;
+		//char line[1024];
+		//is.getline(line, sizeof(line));
+		//line[sizeof(line)-1] = 0;
+
+
 
 		if(firstLine)
 		{
-			std::vector<string> header = csvLineToVector(line);
+			std::vector<string> header = csvLineToVector(line.c_str());
 				
 			elementCount = header.size();
 			for(unsigned int i = 0; i < elementCount; i++)
@@ -122,7 +126,7 @@ CsvElements parseCsvWithHeader(const std::string& fileName)
 		}
 		else // load the rest of the file
 		{
-			std::vector<string> parsedLine = csvLineToVector(line);
+			std::vector<string> parsedLine = csvLineToVector(line.c_str());
 			if(parsedLine.size() != elementCount && parsedLine.size() !=0)
 			{
 				stringstream errorMsg;
@@ -358,7 +362,7 @@ void PointMatcherSupport::validateFile(const std::string& fileName)
 	boost::filesystem::path fullPath(fileName);
 
 	ifstream ifs(fileName.c_str());
-	if (!ifs.good())
+	if (!ifs.good() || !boost::filesystem::is_regular_file(fullPath))
 	#if BOOST_FILESYSTEM_VERSION >= 3
 		#if BOOST_VERSION >= 105000
 				throw runtime_error(string("Cannot open file ") + boost::filesystem::complete(fullPath).generic_string());
@@ -926,7 +930,7 @@ void PointMatcherIO<T>::saveCSV(const DataPoints& data, std::ostream& os)
 	
 	if (pointCount == 0)
 	{
-		cerr << "Warning, no points, doing nothing" << endl;
+		LOG_WARNING_STREAM( "Warning, no points, doing nothing");
 		return;
 	}
 	
@@ -994,8 +998,15 @@ void skipBlock(bool binary, int binarySize, std::istream & is, bool hasSeparateS
 	int n;
 	int size;
 	is >> n;
+	if(!is.good()){
+		throw std::runtime_error("File violates the VTK format : parameter 'n' is missing after a field name.");
+	}
+
 	if(hasSeparateSizeParameter) {
 		is >> size;
+		if(!is.good()){
+			throw std::runtime_error("File violates the VTK format : parameter 'size' is missing after a field name.");
+		}
 	} else {
 		size = n;
 	}
@@ -1018,6 +1029,9 @@ typename PointMatcher<T>::DataPoints PointMatcherIO<T>::loadVTK(std::istream& is
 {
 	//typedef typename DataPoints::Label Label;
 	//typedef typename DataPoints::Labels Labels;
+	
+	
+	std::map<std::string, SplitTime> labelledSplitTime;
 	
 	DataPoints loadedPoints;
 
@@ -1046,16 +1060,16 @@ typename PointMatcher<T>::DataPoints PointMatcherIO<T>::loadVTK(std::istream& is
 		throw runtime_error(string("Wrong data type, expecting DATASET POLYDATA, found ") + line);
 
 
-	// parse points and descriptors
+	// parse points, descriptors and time
 	string fieldName;
 	string name;
 	int dim = 0;
 	int pointCount = 0;
 	string type;
-	while (is.good())
+	
+	while (is >> fieldName)
 	{
-		is >> fieldName;
-		
+
 		// load features
 		if(fieldName == "POINTS")
 		{
@@ -1155,11 +1169,29 @@ typename PointMatcher<T>::DataPoints PointMatcherIO<T>::loadVTK(std::istream& is
 				loadedPoints.addDescriptor(name, descriptor);
 			}
 		}
-		else // Load descriptors
+		else // Load descriptors or time
 		{
-			// descriptor name
-			is >> name;
 
+			// label name
+			is >> name;
+			
+			bool isTimeSec = false;
+			bool isTimeNsec = false;
+
+
+			if(boost::algorithm::ends_with(name, "_splitTime_high32"))
+			{
+				isTimeSec = true;
+				boost::algorithm::erase_last(name, "_splitTime_high32");
+			}
+			
+			if(boost::algorithm::ends_with(name, "_splitTime_low32"))
+			{
+				isTimeNsec = true;
+				boost::algorithm::erase_last(name, "_splitTime_low32");
+			}
+
+			
 			bool skipLookupTable = false;
 			bool isColorScalars = false;
 			if(fieldName == "SCALARS")
@@ -1195,28 +1227,100 @@ typename PointMatcher<T>::DataPoints PointMatcherIO<T>::loadVTK(std::istream& is
 			
 			getline(is, line); // remove rest of the parameter line including its line end;
 
-			Matrix descriptor(dim, pointCount);
-			if(isColorScalars && isBinary) {
-				std::vector<unsigned char> buffer(dim);
-				for (int i = 0; i < pointCount; ++i){
-					is.read(reinterpret_cast<char *>(&buffer.front()), dim);
-					for(int r=0; r < dim; ++r){
-						descriptor(r, i) = buffer[r] / static_cast<T>(255.0);
-					}
-				}
-			} else {
-				if(!(type == "float" || type == "double"))
-						throw runtime_error(string("Field " + fieldName + " is " + type + " but can only be of type double or float"));
-
+			
+			// Load time data
+			if(isTimeSec || isTimeNsec)
+			{
 				// Skip LOOKUP_TABLE line
 				if(skipLookupTable)
 				{
 					getline(is, line);
 				}
-				readVtkData(type, isBinary, descriptor.transpose(), is);
+				
+				typename std::map<std::string, SplitTime>::iterator it;
+
+				it = labelledSplitTime.find(name);
+				// reserve memory
+				if(it == labelledSplitTime.end())
+				{
+					SplitTime t;
+					t.high32 = Eigen::Matrix<unsigned int, Eigen::Dynamic, Eigen::Dynamic> (dim, pointCount);
+					t.low32 = t.high32;
+					labelledSplitTime[name] = t;
+				}
+
+				// Load seconds
+				if(isTimeSec)
+				{
+					assert(labelledSplitTime[name].isHigh32Found == false);
+					readVtkData(type, isBinary, labelledSplitTime[name].high32.transpose(), is);
+					labelledSplitTime[name].isHigh32Found = true;
+				}
+				
+				// Load nano seconds
+				if(isTimeNsec)
+				{
+					assert(labelledSplitTime[name].isLow32Found == false);
+					readVtkData(type, isBinary, labelledSplitTime[name].low32.transpose(), is);
+					labelledSplitTime[name].isLow32Found = true;
+				}
 			}
-			loadedPoints.addDescriptor(name, descriptor);
+			else
+			{
+				
+				Matrix descriptorData(dim, pointCount);
+				
+				if(isColorScalars && isBinary) 
+				{
+					std::vector<unsigned char> buffer(dim);
+					for (int i = 0; i < pointCount; ++i){
+						is.read(reinterpret_cast<char *>(&buffer.front()), dim);
+						for(int r=0; r < dim; ++r){
+							descriptorData(r, i) = buffer[r] / static_cast<T>(255.0);
+						}
+					}
+				} 
+				else 
+				{
+					if(!(type == "float" || type == "double"))
+						throw runtime_error(string("Field " + fieldName + " is " + type + " but can only be of type double or float."));
+
+					// Skip LOOKUP_TABLE line
+					if(skipLookupTable)
+					{
+						getline(is, line);
+					}
+					readVtkData(type, isBinary, descriptorData.transpose(), is);
+				}
+				loadedPoints.addDescriptor(name, descriptorData);
+			}
 		}
+	}
+
+	// Combine time and add to point cloud
+	typename std::map<std::string, SplitTime>::iterator it;
+	for(it=labelledSplitTime.begin(); it!=labelledSplitTime.end(); it++)
+	{
+		// Confirm that both parts were loaded
+		if(it->second.isHigh32Found == false)
+		{
+			throw runtime_error(string("Missing time field representing the higher 32 bits. Expecting SCALARS with name " + it->first + "_splitTime_high32 in the VTK file."));
+		}
+		
+		if(it->second.isLow32Found == false)
+		{
+			throw runtime_error(string("Missing time field representing the lower 32 bits. Expecting SCALARS with name " + it->first + "_splitTime_low32 in the VTK file."));
+		}
+
+		// Loop through points
+		Int64Matrix timeData(1,pointCount);
+		for(int i=0; i<it->second.high32.cols(); i++)
+		{
+		
+			timeData(0,i) = (((boost::int64_t) it->second.high32(0,i)) << 32) | ((boost::int64_t) it->second.low32(0,i));
+		}
+
+		loadedPoints.addTime(it->first, timeData);
 	}
 	
 	return loadedPoints;
@@ -1275,7 +1379,15 @@ template <typename T>
 typename PointMatcherIO<T>::DataPoints PointMatcherIO<T>::loadPLY(std::istream& is)
 {
 	//TODO: adapt following loadCSV()
-	typedef vector<PLYElement*> Elements;
+	class Elements : public vector<PLYElement*>{
+	 public:
+		~Elements(){
+			for (typename vector<PLYElement*>::const_iterator it = this->begin(); it != this->end(); it++ )
+			{
+				delete *it;
+			}
+		}
+	};
 
 	/*
 	Steps:
@@ -1381,6 +1493,7 @@ typename PointMatcherIO<T>::DataPoints PointMatcherIO<T>::loadPLY(std::istream& 
 				for (typename Elements::const_iterator it = elements.begin(); it != elements.end(); it++ )
 				{
 					if (**it == *elem) {
+						delete elem;
 						throw runtime_error(string("PLY parse error: element: ") + elem_name + string( "is already defined"));
 					}
 				}
@@ -1604,7 +1717,7 @@ void PointMatcherIO<T>::savePLY(const DataPoints& data,
 
 	if (pointCount == 0)
 	{
-		cerr << "Warning, no points, doing nothing" << endl;
+		LOG_WARNING_STREAM("Warning, no points, doing nothing");
 		return;
 	}
 
@@ -1619,6 +1732,7 @@ void PointMatcherIO<T>::savePLY(const DataPoints& data,
 	{
 		Label lab = data.descriptorLabels[i];
 		for (size_t s = 0; s < lab.span; s++)
+
 		{
 			ofs << "property float " << getColLabel(lab,s) << "\n";
 		}
@@ -2155,7 +2269,7 @@ void PointMatcherIO<T>::savePCD(const DataPoints& data,
 
 	if (pointCount == 0)
 	{
-		cerr << "Warning, no points, doing nothing" << endl;
+		LOG_WARNING_STREAM("Warning, no points, doing nothing");
 		return;
 	}
 

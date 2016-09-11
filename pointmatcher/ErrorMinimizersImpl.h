@@ -51,6 +51,7 @@ struct ErrorMinimizersImpl
 	typedef typename PointMatcher<T>::Matches Matches;
 	typedef typename PointMatcher<T>::OutlierWeights OutlierWeights;
 	typedef typename PointMatcher<T>::ErrorMinimizer ErrorMinimizer;
+	typedef typename PointMatcher<T>::ErrorMinimizer::ErrorElements ErrorElements;
 	typedef typename PointMatcher<T>::TransformationParameters TransformationParameters;
 	typedef typename PointMatcher<T>::Vector Vector;
 	typedef typename PointMatcher<T>::Matrix Matrix;
@@ -62,7 +63,8 @@ struct ErrorMinimizersImpl
 			return "Does nothing.";
 		}
 		
-		virtual TransformationParameters compute(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches);
+		//virtual TransformationParameters compute(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches);
+		virtual TransformationParameters compute(const ErrorElements& mPts);
 	};
 
 	struct PointToPointErrorMinimizer: ErrorMinimizer
@@ -72,8 +74,12 @@ struct ErrorMinimizersImpl
 			return "Point-to-point error. Based on SVD decomposition. Per \\cite{Besl1992Point2Point}.";
 		}
 		
-		virtual TransformationParameters compute(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches);
+		//virtual TransformationParameters compute(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches);
+		virtual TransformationParameters compute(const ErrorElements& mPts);
+		virtual T getResidualError(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches) const;
 		virtual T getOverlap() const;
+
+		static T computeResidualError(const ErrorElements& mPts);
 	};
 
     struct PointToPointErrorMinimizer2DRotation: ErrorMinimizer
@@ -94,7 +100,9 @@ struct ErrorMinimizersImpl
 			return "Point-to-point similarity error (rotation + translation + scale). The scale is the same for all coordinates. Based on SVD decomposition. Per \\cite{Umeyama1991}.";
 		}
 		
-		virtual TransformationParameters compute(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches);
+		//virtual TransformationParameters compute(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches);
+		virtual TransformationParameters compute(const ErrorElements& mPts);
+		virtual T getResidualError(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches) const;
 		virtual T getOverlap() const;
 	};
 
@@ -115,8 +123,12 @@ struct ErrorMinimizersImpl
 		const bool force2D;
 		
 		PointToPlaneErrorMinimizer(const Parameters& params = Parameters());
-		virtual TransformationParameters compute(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches);
+		//virtual TransformationParameters compute(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches);
+		virtual TransformationParameters compute(const ErrorElements& mPts);
+		virtual T getResidualError(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches) const;
 		virtual T getOverlap() const;
+		
+		static T computeResidualError(ErrorElements mPts, const bool& force2D);
 	};
 
 	struct PointToPlaneErrorMinimizer2DRotation: public ErrorMinimizer
@@ -158,10 +170,12 @@ struct ErrorMinimizersImpl
 		Matrix covMatrix;
 
 		PointToPointWithCovErrorMinimizer(const Parameters& params = Parameters());
-		virtual TransformationParameters compute(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches);
+		//virtual TransformationParameters compute(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches);
+		virtual TransformationParameters compute(const ErrorElements& mPts);
+		virtual T getResidualError(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches) const;
 		virtual T getOverlap() const;
 		virtual Matrix getCovariance() const;
-		Matrix estimateCovariance(const DataPoints& reading, const DataPoints& reference, const Matches& matches, const OutlierWeights& outlierWeights, const TransformationParameters& transformation);
+		Matrix estimateCovariance(const ErrorElements& mPts, const TransformationParameters& transformation);
 	};
 
 	struct PointToPlaneWithCovErrorMinimizer: public ErrorMinimizer
@@ -184,10 +198,12 @@ struct ErrorMinimizersImpl
 		Matrix covMatrix;
 		
 		PointToPlaneWithCovErrorMinimizer(const Parameters& params = Parameters());
-		virtual TransformationParameters compute(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches);
+		//virtual TransformationParameters compute(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches);
+		virtual TransformationParameters compute(const ErrorElements& mPts);
+		virtual T getResidualError(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches) const;
 		virtual T getOverlap() const;
 		virtual Matrix getCovariance() const;
-		Matrix estimateCovariance(const DataPoints& reading, const DataPoints& reference, const Matches& matches, const OutlierWeights& outlierWeights, const TransformationParameters& transformation);
+		Matrix estimateCovariance(const ErrorElements& mPts, const TransformationParameters& transformation);
 	};
 }; // ErrorMinimizersImpl
 

@@ -133,6 +133,7 @@ struct PointMatcherIO
 			("y", "y", FEATURE)
 			("z", "z", FEATURE)
 			("pad", "pad", FEATURE)
+			//("internalName", "externalName", FEATURE)
 			("normals", "nx", DESCRIPTOR)
 			("normals", "ny", DESCRIPTOR)
 			("normals", "nz", DESCRIPTOR)
@@ -155,9 +156,9 @@ struct PointMatcherIO
 			("eigVectors", "eigVectors2X", DESCRIPTOR)
 			("eigVectors", "eigVectors2Y", DESCRIPTOR)
 			("eigVectors", "eigVectors2Z", DESCRIPTOR)
-			//("", "", DESCRIPTOR)
+			//("internalName", "externalName", DESCRIPTOR)
 			("time", "time", TIME)
-			//("", "", TIME)
+			//("internalName", "externalName", TIME)
 			;
 
 			return labels;
@@ -193,6 +194,21 @@ struct PointMatcherIO
 	{
 		POLYDATA,
 		UNSTRUCTURED_GRID
+	};
+
+	//! Storage for time loaded separatly
+	struct SplitTime
+	{
+		bool isHigh32Found;//!< was the high 32bits found in the file
+		bool isLow32Found;//!< was the low 32bits found in the file
+		//! Matrix containing file data representing the high 32 bits
+		Eigen::Matrix<unsigned int, Eigen::Dynamic, Eigen::Dynamic> high32;
+		//! Matrix containing file data representing the low 32 bits
+		Eigen::Matrix<unsigned int, Eigen::Dynamic, Eigen::Dynamic> low32;
+
+		//! Constructor
+		SplitTime(): isHigh32Found(false), isLow32Found(false){};
+
 	};
 
 	static DataPoints loadVTK(const std::string& fileName);
