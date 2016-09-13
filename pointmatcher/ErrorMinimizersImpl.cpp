@@ -1116,16 +1116,9 @@ ErrorMinimizersImpl<T>::PointToPlaneErrorMinimizer2DRotation::PointToPlaneErrorM
 
 template<typename T>
 typename PointMatcher<T>::TransformationParameters ErrorMinimizersImpl<T>::PointToPlaneErrorMinimizer2DRotation::compute(
-		const DataPoints& filteredReading,
-		const DataPoints& filteredReference,
-		const OutlierWeights& outlierWeights,
-		const Matches& matches)
+		const ErrorElements& mPts_arg)
 {
-	assert(matches.ids.rows() > 0);
-
-	// Fetch paired points
-	typename ErrorMinimizer::ErrorElements& mPts = this->getMatchedPoints(filteredReading, filteredReference, matches, outlierWeights);
-
+    ErrorElements mPts = mPts_arg;
 	const int dim = mPts.reading.features.rows();
 	const int nbPts = mPts.reading.features.cols();
 
@@ -1290,7 +1283,7 @@ T ErrorMinimizersImpl<T>::PointToPlaneErrorMinimizer2DRotation::getOverlap() con
 	else
 	{
 		LOG_INFO_STREAM("PointToPlaneErrorMinimizer - warning, no sensor noise and density. Using best estimate given outlier rejection instead.");
-		return this->weightedPointUsedRatio;
+		return this->getWeightedPointUsedRatio();
 	}
 
 
@@ -1332,21 +1325,68 @@ T ErrorMinimizersImpl<T>::PointToPlaneErrorMinimizer2DRotation::getOverlap() con
 
 	return (T)count/(T)(nbUniquePoint + this->lastErrorElements.nbRejectedPoints);
 }
+
+template<typename T>
+T ErrorMinimizersImpl<T>::PointToPlaneErrorMinimizer2DRotation::getResidualError(
+        const DataPoints& filteredReading,
+        const DataPoints& filteredReference,
+        const OutlierWeights& outlierWeights,
+        const Matches& matches) const
+{
+    assert(matches.ids.rows() > 0);
+
+    // Fetch paired points
+    typename ErrorMinimizer::ErrorElements mPts(filteredReading, filteredReference, outlierWeights, matches);
+
+    return PointToPlaneErrorMinimizer2DRotation::computeResidualError(mPts, force2D);
+}
+
+template<typename T>
+T ErrorMinimizersImpl<T>::PointToPlaneErrorMinimizer2DRotation::computeResidualError(ErrorElements mPts, const bool& force2D)
+{
+    const int dim = mPts.reading.features.rows();
+    const int nbPts = mPts.reading.features.cols();
+
+    // Adjust if the user forces 2D minimization on XY-plane
+    int forcedDim = dim - 1;
+    if(force2D && dim == 4)
+    {
+        mPts.reading.features.conservativeResize(3, Eigen::NoChange);
+        mPts.reading.features.row(2) = Matrix::Ones(1, nbPts);
+        mPts.reference.features.conservativeResize(3, Eigen::NoChange);
+        mPts.reference.features.row(2) = Matrix::Ones(1, nbPts);
+        forcedDim = dim - 2;
+    }
+
+    // Fetch normal vectors of the reference point cloud (with adjustment if needed)
+    const BOOST_AUTO(normalRef, mPts.reference.getDescriptorViewByName("normals").topRows(forcedDim));
+
+    // Note: Normal vector must be precalculated to use this error. Use appropriate input filter.
+    assert(normalRef.rows() > 0);
+
+    const Matrix deltas = mPts.reading.features - mPts.reference.features;
+
+    // dot product of dot = dot(deltas, normals)
+    Matrix dotProd = Matrix::Zero(1, normalRef.cols());
+
+    for(int i=0; i<normalRef.rows(); i++)
+    {
+        dotProd += (deltas.row(i).array() * normalRef.row(i).array()).matrix();
+    }
+
+    // return sum of the norm of each dot product
+    Matrix dotProdNorm = dotProd.colwise().norm();
+    return dotProdNorm.sum();
+}
 template struct ErrorMinimizersImpl<float>::PointToPlaneErrorMinimizer2DRotation;
 template struct ErrorMinimizersImpl<double>::PointToPlaneErrorMinimizer2DRotation;
 
 // Point To POINT 2D rotation ErrorMinimizer
 template<typename T>
 typename PointMatcher<T>::TransformationParameters ErrorMinimizersImpl<T>::PointToPointErrorMinimizer2DRotation::compute(
-        const DataPoints& filteredReading,
-        const DataPoints& filteredReference,
-        const OutlierWeights& outlierWeights,
-        const Matches& matches)
+        const ErrorElements& mPts_arg)
 {
-    assert(matches.ids.rows() > 0);
-
-    typename ErrorMinimizer::ErrorElements& mPts = this->getMatchedPoints(filteredReading, filteredReference, matches, outlierWeights);
-
+    ErrorElements mPts = mPts_arg;
     // now minimize on kept points
     const int dimCount(mPts.reading.features.rows());
     //const int ptsCount(mPts.reading.features.cols()); //Both point clouds have now the same number of (matched) point
@@ -1422,7 +1462,7 @@ T ErrorMinimizersImpl<T>::PointToPointErrorMinimizer2DRotation::getOverlap() con
     if (!this->lastErrorElements.reading.descriptorExists("simpleSensorNoise"))
     {
         LOG_INFO_STREAM("PointToPointErrorMinimizer - warning, no sensor noise found. Using best estimate given outlier rejection instead.");
-        return this->weightedPointUsedRatio;
+        return this->getWeightedPointUsedRatio();
     }
 
     const BOOST_AUTO(noises, this->lastErrorElements.reading.getDescriptorViewByName("simpleSensorNoise"));
@@ -1442,5 +1482,31 @@ T ErrorMinimizersImpl<T>::PointToPointErrorMinimizer2DRotation::getOverlap() con
     return (T)count/(T)nbPoints;
 }
 
+template<typename T>
+T ErrorMinimizersImpl<T>::PointToPointErrorMinimizer2DRotation::getResidualError(
+        const DataPoints& filteredReading,
+        const DataPoints& filteredReference,
+        const OutlierWeights& outlierWeights,
+        const Matches& matches) const
+{
+    assert(matches.ids.rows() > 0);
+
+    // Fetch paired points
+    typename ErrorMinimizer::ErrorElements mPts(filteredReading, filteredReference, outlierWeights, matches);
+
+    return PointToPointErrorMinimizer2DRotation::computeResidualError(mPts);
+}
+
+template<typename T>
+T ErrorMinimizersImpl<T>::PointToPointErrorMinimizer2DRotation::computeResidualError(const ErrorElements& mPts)
+{
+    //typedef typename PointMatcher<T>::Matrix Matrix;
+
+    const Matrix deltas = mPts.reading.features - mPts.reference.features;
+
+    // return sum of the norm of each delta
+    Matrix deltaNorms = deltas.colwise().norm();
+    return deltaNorms.sum();
+}
 template struct ErrorMinimizersImpl<float>::PointToPointErrorMinimizer2DRotation;
 template struct ErrorMinimizersImpl<double>::PointToPointErrorMinimizer2DRotation;

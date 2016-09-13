@@ -89,8 +89,11 @@ struct ErrorMinimizersImpl
             return "Point-to-point 2D rotation error. Based on SVD decomposition. Per \\cite{Besl1992Point2Point}.";
         }
 
-        virtual TransformationParameters compute(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches);
-        virtual T getOverlap() const;
+		virtual TransformationParameters compute(const ErrorElements& mPts);
+		virtual T getResidualError(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches) const;
+		virtual T getOverlap() const;
+
+		static T computeResidualError(const ErrorElements& mPts);
     };
 
   	struct PointToPointSimilarityErrorMinimizer: ErrorMinimizer
@@ -148,8 +151,11 @@ struct ErrorMinimizersImpl
 		const bool force2D;
 
 		PointToPlaneErrorMinimizer2DRotation(const Parameters& params = Parameters());
-		virtual TransformationParameters compute(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches);
+		virtual TransformationParameters compute(const ErrorElements& mPts);
+		virtual T getResidualError(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches) const;
 		virtual T getOverlap() const;
+
+		static T computeResidualError(ErrorElements mPts, const bool& force2D);
 	};
 
 	struct PointToPointWithCovErrorMinimizer: ErrorMinimizer

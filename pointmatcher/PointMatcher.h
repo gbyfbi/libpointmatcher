@@ -526,7 +526,6 @@ struct PointMatcher
 			ErrorElements(const DataPoints& requestedPts, const DataPoints sourcePts, const OutlierWeights outlierWeights, const Matches matches);
             double averagedMatchingDist2; //!< average of squared matching disttances in matches
             double weightedMatchingDist2; //!< weighted squared matching distances in matches
-			ErrorElements(const DataPoints& reading=DataPoints(), const DataPoints reference = DataPoints(), const OutlierWeights weights = OutlierWeights(), const Matches matches = Matches());
 		};
 		
 		ErrorMinimizer();
@@ -540,7 +539,7 @@ struct PointMatcher
 		virtual Matrix getCovariance() const;
 		virtual T getResidualError(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches) const;
 
-		//! Find the transformation that minimizes the error
+		//! Find the transformation that minimizes the error (this function is called by icp main loop which it calls the real working function below)
 		virtual TransformationParameters compute(const DataPoints& filteredReading, const DataPoints& filteredReference, const OutlierWeights& outlierWeights, const Matches& matches);
 		//! Find the transformation that minimizes the error given matched pair of points. This function most be defined for all new instances of ErrorMinimizer.
 		virtual TransformationParameters compute(const ErrorElements& matchedPoints) = 0;
