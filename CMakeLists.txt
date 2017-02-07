@@ -88,9 +88,8 @@ install(FILES package.xml DESTINATION "share/${PROJECT_NAME}")
 
 #===========================================================================
 
-# Documentation
-set(DOXYFILE_LATEX false)
-include(UseDoxygen)
+
+#======================== External Dependencies ===============================
 
 # initially
 set(EXTERNAL_LIBS "")
@@ -208,6 +207,8 @@ if (POSIX_TIMERS AND NOT APPLE)
 	set(EXTERNAL_LIBS ${EXTERNAL_LIBS} rt)
 endif (POSIX_TIMERS AND NOT APPLE)
 
+#============================= end dependencies =================================
+
 
 # SOURCE
 
@@ -228,6 +229,7 @@ set(POINTMATCHER_SRC
 	pointmatcher/TransformationChecker.cpp
 	pointmatcher/Inspector.cpp
 	pointmatcher/IO.cpp
+	pointmatcher/IOFunctions.cpp
 	pointmatcher/Bibliography.cpp
 	pointmatcher/Timer.cpp
 	pointmatcher/Histogram.cpp
@@ -281,22 +283,47 @@ if(EXTRA_DEPS)
 endif(EXTRA_DEPS)
 set_target_properties(pointmatcher PROPERTIES VERSION "${PROJECT_VERSION}" SOVERSION 1)
 
-# create doc before installing
-set(DOC_INSTALL_TARGET "share/doc/${PROJECT_NAME}/api" CACHE STRING "Target where to install doxygen documentation")
-add_dependencies(pointmatcher doc)
+#========================= Install header ===========================
+
 install(FILES
 	pointmatcher/PointMatcher.h
 	pointmatcher/PointMatcherPrivate.h
 	pointmatcher/Parametrizable.h
 	pointmatcher/Registrar.h
 	pointmatcher/Timer.h
+	pointmatcher/Functions.h
 	pointmatcher/IO.h
 	DESTINATION ${INSTALL_INCLUDE_DIR}/pointmatcher
 )
-install(FILES README.md DESTINATION share/doc/${PROJECT_NAME})
-if (DOXYGEN_FOUND)
-	install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/doc/html DESTINATION ${DOC_INSTALL_TARGET})
-endif (DOXYGEN_FOUND)
+
+#========================= Documentation ===========================
+
+set(GENERATE_API_DOC false CACHE BOOL "Set to true to build the documentation using Doxygen")
+
+if(GENERATE_API_DOC)
+
+	message("-- API Documentation (doxygen): enabled")
+
+	# Note: there seems to be equations in the documentation leading to the
+	# use of Latex anyway. This cause problems for user without latex...
+
+	set(DOXYFILE_LATEX "NO")
+	include(UseDoxygen)
+
+	set(DOC_INSTALL_TARGET "share/doc/${PROJECT_NAME}/api" CACHE STRING "Target where to install doxygen documentation")
+
+	add_dependencies(pointmatcher doc)
+
+	install(FILES README.md DESTINATION share/doc/${PROJECT_NAME})
+	if (DOXYGEN_FOUND)
+		install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/doc/html DESTINATION ${DOC_INSTALL_TARGET})
+	endif (DOXYGEN_FOUND)
+
+else(GENERATE_API_DOC)
+
+	message("-- API Documentation (doxygen): disabled")
+
+endif(GENERATE_API_DOC)
 
 
 #=============== trigger other makefile ======================
