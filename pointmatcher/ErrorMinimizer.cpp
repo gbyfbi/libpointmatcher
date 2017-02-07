@@ -188,13 +188,13 @@ PointMatcher<T>::ErrorMinimizer::ErrorElements::ErrorElements(const DataPoints& 
 		associatedTime,
 		sourcePts.timeLabels
 	);
-	this->lastErrorElements.weights = keptWeights;
-	this->lastErrorElements.matches = keptMatches;
-	this->lastErrorElements.nbRejectedMatches = rejectedMatchCount;
-	this->lastErrorElements.nbRejectedPoints = rejectedPointCount;
+//	this->lastErrorElements.weights = keptWeights;
+//	this->lastErrorElements.matches = keptMatches;
+//	this->lastErrorElements.nbRejectedMatches = rejectedMatchCount;
+//	this->lastErrorElements.nbRejectedPoints = rejectedPointCount;
     // save them into ErrorElements so that we don't need two getter()
-    this->lastErrorElements.averagedMatchingDist2 = averagedMatchingDist2;
-    this->lastErrorElements.weightedMatchingDist2 = weightedMatchingDist2;
+    this->averagedMatchingDist2 = averagedMatchingDist2;
+    this->weightedMatchingDist2 = weightedMatchingDist2;
 
 	this->weights = keptWeights;
 	this->matches = keptMatches;

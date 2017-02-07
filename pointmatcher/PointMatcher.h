@@ -526,7 +526,7 @@ struct PointMatcher
 			ErrorElements(const DataPoints& requestedPts, const DataPoints sourcePts, const OutlierWeights outlierWeights, const Matches matches);
             double averagedMatchingDist2; //!< average of squared matching disttances in matches
             double weightedMatchingDist2; //!< weighted squared matching distances in matches
-			ErrorElements(const DataPoints& reading=DataPoints(), const DataPoints reference = DataPoints(), const OutlierWeights weights = OutlierWeights(), const Matches matches = Matches());
+//			ErrorElements(const DataPoints& reading=DataPoints(), const DataPoints reference = DataPoints(), const OutlierWeights weights = OutlierWeights(), const Matches matches = Matches());
 		};
 		
 		ErrorMinimizer();
