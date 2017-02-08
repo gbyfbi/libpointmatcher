@@ -1104,29 +1104,37 @@ ErrorMinimizersImpl<T>::PointToPlaneErrorMinimizer2DRotation::PointToPlaneErrorM
 }
 
 
+//template<typename T>
+//typename PointMatcher<T>::TransformationParameters ErrorMinimizersImpl<T>::PointToPlaneErrorMinimizer2DRotation::compute(
+//		const DataPoints& filteredReading,
+//		const DataPoints& filteredReference,
+//		const OutlierWeights& outlierWeights,
+//		const Matches& matches)
+//{
+//	assert(matches.ids.rows() > 0);
+//
+//	// Fetch paired points
+//	typename ErrorMinimizer::ErrorElements& mPts = this->getMatchedPoints(filteredReading, filteredReference, matches, outlierWeights);
 template<typename T>
-typename PointMatcher<T>::TransformationParameters ErrorMinimizersImpl<T>::PointToPlaneErrorMinimizer2DRotation::compute(
-		const DataPoints& filteredReading,
-		const DataPoints& filteredReference,
-		const OutlierWeights& outlierWeights,
-		const Matches& matches)
+typename PointMatcher<T>::TransformationParameters ErrorMinimizersImpl<T>::PointToPlaneErrorMinimizer2DRotation::compute(const ErrorElements& mPts)
 {
-	assert(matches.ids.rows() > 0);
-
-	// Fetch paired points
-	typename ErrorMinimizer::ErrorElements& mPts = this->getMatchedPoints(filteredReading, filteredReference, matches, outlierWeights);
-
 	const int dim = mPts.reading.features.rows();
 	const int nbPts = mPts.reading.features.cols();
 
 	// Adjust if the user forces 2D minimization on XY-plane
 	int forcedDim = dim - 1;
+	Matrix mPts_reading_features = mPts.reading.features;
+	Matrix mPts_reference_features = mPts.reference.features;
 	if(force2D && dim == 4)
 	{
-		mPts.reading.features.conservativeResize(3, Eigen::NoChange);
-		mPts.reading.features.row(2) = Matrix::Ones(1, nbPts);
-		mPts.reference.features.conservativeResize(3, Eigen::NoChange);
-		mPts.reference.features.row(2) = Matrix::Ones(1, nbPts);
+//		mPts.reading.features.conservativeResize(3, Eigen::NoChange);
+//		mPts.reading.features.row(2) = Matrix::Ones(1, nbPts);
+//		mPts.reference.features.conservativeResize(3, Eigen::NoChange);
+//		mPts.reference.features.row(2) = Matrix::Ones(1, nbPts);
+		mPts_reading_features.conservativeResize(3, Eigen::NoChange);
+		mPts_reading_features.row(2) = Matrix::Ones(1, nbPts);
+		mPts_reference_features.conservativeResize(3, Eigen::NoChange);
+		mPts_reference_features.row(2) = Matrix::Ones(1, nbPts);
 		forcedDim = dim - 2;
 	}
 
@@ -1137,7 +1145,7 @@ typename PointMatcher<T>::TransformationParameters ErrorMinimizersImpl<T>::Point
 	assert(normalRef.rows() > 0);
 
 	// Compute cross product of cross = cross(reading X normalRef)
-	const Matrix cross = this->crossProduct(mPts.reading.features, normalRef);
+	const Matrix cross = this->crossProduct(mPts_reading_features, normalRef);
 
 	// wF = [weights*cross, weights*normals]
 	// F  = [cross, normals]
@@ -1158,7 +1166,8 @@ typename PointMatcher<T>::TransformationParameters ErrorMinimizersImpl<T>::Point
 	// Unadjust covariance A = wF * F'
 	const Matrix A = wF * F.transpose();
 
-	const Matrix deltas = mPts.reading.features - mPts.reference.features;
+//	const Matrix deltas = mPts.reading.features - mPts.reference.features;
+    const Matrix deltas = mPts_reading_features - mPts_reference_features;
 
 	// dot product of dot = dot(deltas, normals)
 	Matrix dotProd = Matrix::Zero(1, normalRef.cols());
@@ -1280,7 +1289,7 @@ T ErrorMinimizersImpl<T>::PointToPlaneErrorMinimizer2DRotation::getOverlap() con
 	else
 	{
 		LOG_INFO_STREAM("PointToPlaneErrorMinimizer - warning, no sensor noise and density. Using best estimate given outlier rejection instead.");
-		return this->weightedPointUsedRatio;
+		return this->getWeightedPointUsedRatio();
 	}
 
 
@@ -1326,17 +1335,20 @@ template struct ErrorMinimizersImpl<float>::PointToPlaneErrorMinimizer2DRotation
 template struct ErrorMinimizersImpl<double>::PointToPlaneErrorMinimizer2DRotation;
 
 // Point To POINT 2D rotation ErrorMinimizer
+//template<typename T>
+//typename PointMatcher<T>::TransformationParameters ErrorMinimizersImpl<T>::PointToPointErrorMinimizer2DRotation::compute(
+//        const DataPoints& filteredReading,
+//        const DataPoints& filteredReference,
+//        const OutlierWeights& outlierWeights,
+//        const Matches& matches)
+//{
+//    assert(matches.ids.rows() > 0);
+//
+//    typename ErrorMinimizer::ErrorElements& mPts = this->getMatchedPoints(filteredReading, filteredReference, matches, outlierWeights);
+
 template<typename T>
-typename PointMatcher<T>::TransformationParameters ErrorMinimizersImpl<T>::PointToPointErrorMinimizer2DRotation::compute(
-        const DataPoints& filteredReading,
-        const DataPoints& filteredReference,
-        const OutlierWeights& outlierWeights,
-        const Matches& matches)
+typename PointMatcher<T>::TransformationParameters ErrorMinimizersImpl<T>::PointToPointErrorMinimizer2DRotation::compute(const ErrorElements & mPts)
 {
-    assert(matches.ids.rows() > 0);
-
-    typename ErrorMinimizer::ErrorElements& mPts = this->getMatchedPoints(filteredReading, filteredReference, matches, outlierWeights);
-
     // now minimize on kept points
     const int dimCount(mPts.reading.features.rows());
     //const int ptsCount(mPts.reading.features.cols()); //Both point clouds have now the same number of (matched) point
@@ -1357,12 +1369,18 @@ typename PointMatcher<T>::TransformationParameters ErrorMinimizersImpl<T>::Point
 #endif
 
     // Remove the mean from the point clouds
-    mPts.reading.features.topRows(dimCount-1).colwise() -= meanReading;
-    mPts.reference.features.topRows(dimCount-1).colwise() -= meanReference;
+    Matrix mPts_reading_features = mPts.reading.features;
+    Matrix mPts_reference_features = mPts.reference.features;
+//    mPts.reading.features.topRows(dimCount-1).colwise() -= meanReading;
+//    mPts.reference.features.topRows(dimCount-1).colwise() -= meanReference;
+    mPts_reading_features.topRows(dimCount-1).colwise() -= meanReading;
+    mPts_reference_features.topRows(dimCount-1).colwise() -= meanReference;
 
     // Singular Value Decomposition
-    const Matrix m(mPts.reference.features.topRows(dimCount-1) * w.asDiagonal()
-                   * mPts.reading.features.topRows(dimCount-1).transpose());
+//    const Matrix m(mPts.reference.features.topRows(dimCount-1) * w.asDiagonal()
+//                   * mPts.reading.features.topRows(dimCount-1).transpose());
+	const Matrix m(mPts_reference_features.topRows(dimCount-1) * w.asDiagonal()
+				   * mPts_reading_features.topRows(dimCount-1).transpose());
     const JacobiSVD<Matrix> svd(m, ComputeThinU | ComputeThinV);
     Matrix rotMatrix(svd.matrixU() * svd.matrixV().transpose());
     // It is possible to get a reflection instead of a rotation. In this case, we
@@ -1412,7 +1430,7 @@ T ErrorMinimizersImpl<T>::PointToPointErrorMinimizer2DRotation::getOverlap() con
     if (!this->lastErrorElements.reading.descriptorExists("simpleSensorNoise"))
     {
         LOG_INFO_STREAM("PointToPointErrorMinimizer - warning, no sensor noise found. Using best estimate given outlier rejection instead.");
-        return this->weightedPointUsedRatio;
+        return this->getWeightedPointUsedRatio();
     }
 
     const BOOST_AUTO(noises, this->lastErrorElements.reading.getDescriptorViewByName("simpleSensorNoise"));
