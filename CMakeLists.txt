@@ -55,6 +55,7 @@ if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_definitions(-O3)
 endif(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
 
+set (CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
 # For Windows
 if( MSVC ) # VS2012 does not support tuples correctly yet
 	add_definitions( /D _VARIADIC_MAX=10 )
